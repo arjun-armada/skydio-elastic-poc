@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/olivere/elastic/v7"
-	"github.com/scylladb/gocqlx/v3"
 )
 
 type FlightMedia struct {
 	DownloadURL string `json:"download_url"`
 	FlightID    string `json:"flight_id"`
+	//MediaUUID   string `json:"media_uuid"`
 }
 
 type Flight struct {
@@ -32,88 +31,56 @@ type JoinedData struct {
 }
 
 func main() {
-	// Connect to ScyllaDB
-	// cluster := gocql.NewCluster("10.2.223.174")
-	// cluster.Keyspace = "skydiodb"
-	// cluster.Consistency = gocql.Quorum
-	// session, err := cluster.CreateSession()
-	// if err != nil {
-	// 	log.Fatalf("Error connecting to ScyllaDB: %v", err)
-	// }
+	cluster := gocql.NewCluster("127.0.0.1:12127") // change to your Scylla IP or DNS
+	cluster.Keyspace = "skydiodb"
+	cluster.Consistency = gocql.Quorum
 
-	// fmt.Println(session)
-
-	// defer session.Close()
-
-	clusterConfig := *gocql.NewCluster([]string{"127.0.0.1:12127", "127.0.0.1:12128", "127.0.0.1:12129"}...)
-	// clusterConfig.Hosts = []string{"127.0.0.1:12127", "127.0.0.1:12128", "127.0.0.1:12129"}
-	clusterConfig.Timeout = 60 * time.Second
-	clusterConfig.ConnectTimeout = 5 * time.Second
-	clusterConfig.Keyspace = "skydiodb"
-
-	// clusterConfig.SerialConsistency = gocql.LocalSerial
-	// clusterConfig.Consistency = gocql.Quorum // You can adjust based on your use case
-
-	// // Round-robin load balancing policy (spread queries across all nodes)
-	// clusterConfig.PoolConfig.HostSelectionPolicy = gocql.RoundRobinHostPolicy()
-
-	var err error
-	_, err = gocqlx.WrapSession(gocql.NewSession(clusterConfig))
-
+	session, err := cluster.CreateSession()
 	if err != nil {
-		log.Fatalln("Error opening session to skydiodb", err)
+		log.Fatalf("Failed to connect to ScyllaDB: %v", err)
 	}
-	fmt.Println("Connected to scyllaDB!!")
-	session, _ := clusterConfig.CreateSession()
-	//fmt.Println(session)
+	defer session.Close()
 
-	// // Fetch flightMedia
-	var listFlightMedia = make(map[string]FlightMedia)
-	iter := session.Query(`SELECT flight_id, download_url FROM flight_media`).Iter()
+	fmt.Println("Connected to scyllaDB!!")
+	var listFlightMedia = make(map[string][]FlightMedia)
+
+	iter := session.Query(`SELECT flight_id,  download_url FROM flight_media`).Iter()
 	var fm FlightMedia
+	var mediaCount int
 	for iter.Scan(&fm.FlightID, &fm.DownloadURL) {
-		listFlightMedia[fm.FlightID] = fm
+		listFlightMedia[fm.FlightID] = append(listFlightMedia[fm.FlightID], fm)
+		mediaCount++
 	}
 	if err := iter.Close(); err != nil {
 		log.Fatalf("Error fetching flightMedia: %v", err)
 	}
 
-	fmt.Println(len(listFlightMedia))
+	fmt.Println("mediaCount: ", mediaCount)
 
-	// var listFlights = make(map[string]Flight)
-	// iter = session.Query(`SELECT flight_id, takeoff_lat, takeoff_long FROM flights`).Iter()
-	// var f Flight
-	// for iter.Scan(&f.FlightID, &f.TakeoffLat, &f.TakeoffLon) {
-	// 	listFlights[f.FlightID] = f
-	// }
-
-	// fmt.Println("len of listFlights: ", len(listFlights))
-
-	// Fetch orders and join with users
 	var joinedData []JoinedData
 	iter = session.Query(`SELECT flight_id, takeoff_lat, takeoff_long FROM flights`).Iter()
 	var f Flight
 	for iter.Scan(&f.FlightID, &f.TakeoffLat, &f.TakeoffLon) {
-		if fm, exists := listFlightMedia[f.FlightID]; exists {
-			joinedData = append(joinedData, JoinedData{FlightMedia: fm, Flights: f, Location: struct {
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			}{
-				Lat: f.TakeoffLat,
-				Lon: f.TakeoffLon,
-			}})
+		if medias, exists := listFlightMedia[f.FlightID]; exists {
+
+			for _, v := range medias {
+				joinedData = append(joinedData, JoinedData{FlightMedia: v, Flights: f, Location: struct {
+					Lat float64 `json:"lat"`
+					Lon float64 `json:"lon"`
+				}{
+					Lat: f.TakeoffLat,
+					Lon: f.TakeoffLon,
+				}})
+			}
+
 		}
 	}
-
-	fmt.Println(len(joinedData))
-
-	fmt.Println("joined[0]: ", joinedData[0].Flights.TakeoffLat, joinedData[0].Flights.TakeoffLon)
 
 	if err := iter.Close(); err != nil {
 		log.Fatalf("Error fetching orders: %v", err)
 	}
 
-	// // Push joined data to Elasticsearch
+	fmt.Println("len(joinedData): ", len(joinedData))
 	pushToElasticsearch(joinedData)
 }
 
@@ -154,6 +121,7 @@ func pushToElasticsearch(data []JoinedData) {
 			Do(context.Background())
 		if err != nil {
 			log.Printf("Failed to insert document: %v", err)
+			break
 		}
 	}
 
