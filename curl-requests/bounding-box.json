@@ -1,0 +1,19 @@
+GET your_index/_search
+{
+  "_source": ["geo_point", "Download_URL"],
+  "size": 1000,
+  "query": {
+    "geo_bounding_box": {
+      "geo_point": {
+        "top_left": {
+          "lat": 40.9175,
+          "lon": -74.2591
+        },
+        "bottom_right": {
+          "lat": 40.4774,
+          "lon": -73.7004
+        }
+      }
+    }
+  }
+}
