@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-drone-index-template
+spec:
+  template:
+    spec:
+      containers:
+      - name: curl
+        image: curlimages/curl:latest
+        command: [
+          "sh", "-c",
+          "curl -u elastic:password -X PUT https://elasticsearch:9200/_index_template/drone-data-template -H 'Content-Type: application/json' --data-binary @/templates/drone-template.json"
+        ]
+        volumeMounts:
+        - name: templates
+          mountPath: /templates
+      restartPolicy: OnFailure
+      volumes:
+      - name: templates
+        configMap:
+          name: drone-templates-configmap

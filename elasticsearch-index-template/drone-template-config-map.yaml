@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: drone-templates-configmap
+data:
+  drone-template.json: |
+    {
+      "index_patterns": ["drone-data-*"],
+      "data_stream": { },
+      "template": {
+        "mappings": {
+          "properties": {
+            "location": {
+              "type": "geo_point"
+            },
+            "timestamp": {
+              "type": "date"
+            }
+          }
+        }
+      }
+    }
