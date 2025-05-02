@@ -31,7 +31,7 @@ curl -k -X POST "https://localhost:9200/_security/api_key" \
 The -k flag (or --insecure) tells curl to not validate the SSL certificate when connecting over HTTPS.
 
 
-curl -k -H "Authorization: ApiKey <API Key>" https://localhost:9200
+curl -k -H "Authorization: ApiKey <API Key>" https://quickstart-es-http.default.svc:9200
 {
   "name" : "quickstart-es-default-0",
   "cluster_name" : "quickstart",
@@ -49,4 +49,30 @@ curl -k -H "Authorization: ApiKey <API Key>" https://localhost:9200
   },
   "tagline" : "You Know, for Search"
 }
+```
+
+## Error with localhost
+```
+curl --cacert eck-ca.crt -H "Authorization: ApiKey WEVyVGtwWUJpa2VaMVprU19EUkk6cDdFQm5GdDFRWHl5VDNaX0ZqSU4wQQ==" https://localhost:9200
+curl: (60) SSL: no alternative certificate subject name matches target host name 'localhost'
+More details here: https://curl.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the web page mentioned above.
+```
+
+## /etc/hosts
+```
+~ cat /etc/hosts
+##
+# Host Database
+#
+# localhost is used to configure the loopback interface
+# when the system is booting.  Do not change this entry.
+##
+127.0.0.1	localhost
+255.255.255.255	broadcasthost
+::1             localhost
+127.0.0.1 quickstart-es-http.default.svc
 ```

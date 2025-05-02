@@ -8,6 +8,7 @@ kubectl port-forward service/quickstart-es-http 9200
 ```
  kubectl get secret quickstart-es-elastic-user -o go-template='{{.data.elastic | base64decode}}'
  ```
+
 ## Command to use the password:
 ```
 The -k flag (or --insecure) tells curl to not validate the SSL certificate when connecting over HTTPS.
@@ -15,9 +16,14 @@ The -k flag (or --insecure) tells curl to not validate the SSL certificate when 
 curl -u elastic:<password> https://localhost:9200 -k
 ```
 
+## Command to get the ca.crt
+```
+kubectl get secret quickstart-es-http-certs-internal -o jsonpath='{.data.ca\.crt}' | base64 -d > eck-ca.crt
+```
+
 # When I used CURL with ca certificate I got an error.
 ```
-curl --cacert ca.crt -u elastic:ZQP7Mr66F76Uz7X6G0c6XRA8 https://localhost:9200
+curl --cacert eck-ca.crt -u elastic:ZQP7Mr66F76Uz7X6G0c6XRA8 https://localhost:9200
 
 curl: (60) SSL: no alternative certificate subject name matches target host name 'localhost'
 More details here: https://curl.se/docs/sslcerts.html
