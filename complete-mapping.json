@@ -1,0 +1,21 @@
+{
+  "mappings": {
+    "properties": {
+      "FlightMedia": {
+        "properties": {
+          "download_url": { "type": "text" },
+          "flight_id":     { "type": "keyword" },
+          "captured_time": { "type": "long" }
+        }
+      },
+      "Flights": {
+        "properties": {
+          "flight_id":   { "type": "keyword" },
+          "takeoff_lat": { "type": "double" },
+          "takeoff_long":{ "type": "double" }
+        }
+      },
+      "location": { "type": "geo_point" }
+    }
+  }
+}

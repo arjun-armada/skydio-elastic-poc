@@ -25,6 +25,8 @@ type Flight struct {
 	FlightID   string  `json:"flight_id"`
 	TakeoffLat float64 `json:"takeoff_lat"`
 	TakeoffLon float64 `json:"takeoff_long"`
+	OrgId      string  `json:"org_id"`
+	AccountId  string  `json:"account_id"`
 }
 
 type FlightTelemetry struct {
@@ -33,14 +35,16 @@ type FlightTelemetry struct {
 	GPSLon    float64 `json:"gps_longitude"`
 	Timestamp int64   `json:"timestamp"`
 }
-
+type Location struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
 type JoinedData struct {
 	FlightMedia FlightMedia `json:"FlightMedia"`
 	//Flights     Flight      `json:"Flights"`
-	Location struct {
-		Lat float64 `json:"lat"`
-		Lon float64 `json:"lon"`
-	} `json:"location"`
+	OrgId     string   `json:"org_id"`
+	AccountId string   `json:"account_id"`
+	Location  Location `json:"location"`
 }
 
 func main() {
@@ -71,10 +75,10 @@ func main() {
 		mapFlightTelemetry[flightID] = telemetryList // reassign the sorted slice
 	}
 
-	iter = session.Query(`SELECT flight_id, takeoff_lat, takeoff_long FROM flights`).Iter()
+	iter = session.Query(`SELECT flight_id, takeoff_lat, takeoff_long, org_id, account_id FROM flights`).Iter()
 	var mapFlights = make(map[string]Flight)
 	var flight Flight
-	for iter.Scan(&flight.FlightID, &flight.TakeoffLat, &flight.TakeoffLon) {
+	for iter.Scan(&flight.FlightID, &flight.TakeoffLat, &flight.TakeoffLon, &flight.OrgId, &flight.AccountId) {
 		mapFlights[flight.FlightID] = flight
 	}
 
@@ -83,32 +87,28 @@ func main() {
 	iter = session.Query(`SELECT flight_id, download_url, tounixtimestamp(captured_time) FROM flight_media`).Iter()
 	var fm FlightMedia
 	for iter.Scan(&fm.FlightID, &fm.DownloadURL, &fm.CapturedTime) {
+		data := JoinedData{FlightMedia: fm}
+
+		flight, hasFlight := mapFlights[fm.FlightID]
+		if hasFlight {
+			data.OrgId = flight.OrgId
+			data.AccountId = flight.AccountId
+		}
+
 		if ft, exists := mapFlightTelemetry[fm.FlightID]; exists {
 			index := getLatLonFlightTelemetry(ft, fm.CapturedTime)
-			joinedData = append(joinedData, JoinedData{FlightMedia: fm, Location: struct {
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			}{
-				Lat: ft[index].GPSLat,
-				Lon: ft[index].GPSLon,
-			}})
-		} else if flight, exists := mapFlights[fm.FlightID]; exists {
-			joinedData = append(joinedData, JoinedData{FlightMedia: fm, Location: struct {
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			}{
-				Lat: flight.TakeoffLat,
-				Lon: flight.TakeoffLat,
-			}})
+
+			data.Location.Lat = ft[index].GPSLat
+			data.Location.Lon = ft[index].GPSLon
+
+		} else if hasFlight {
+			data.Location.Lat = flight.TakeoffLat
+			data.Location.Lon = flight.TakeoffLat
 		} else {
-			joinedData = append(joinedData, JoinedData{FlightMedia: fm, Location: struct {
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			}{
-				Lat: 0,
-				Lon: 0,
-			}})
+			data.Location.Lat = 0
+			data.Location.Lon = 0
 		}
+		joinedData = append(joinedData, data)
 	}
 
 	fmt.Println("len(joinedData): ", len(joinedData))
@@ -120,7 +120,7 @@ func main() {
 func getLatLonFlightTelemetry(ft []FlightTelemetry, capturedTime int64) int {
 	left := 0
 	right := len(ft) - 1
-	ans := -1
+	ans := left
 	for left <= right {
 		mid := left + (right-left)/2
 		if ft[mid].Timestamp <= capturedTime {
@@ -132,6 +132,7 @@ func getLatLonFlightTelemetry(ft []FlightTelemetry, capturedTime int64) int {
 	}
 
 	return ans
+
 }
 
 type transportWithAPIKey struct {
@@ -146,7 +147,8 @@ func (t *transportWithAPIKey) RoundTrip(req *http.Request) (*http.Response, erro
 
 func pushToElasticsearchWithAPIKey(data []JoinedData) {
 	esURL := "https://quickstart-es-http.default.svc:9200"
-	apiKeyHeader := "ApiKey " + "amtxSnBwWUJpa2VaMVprU2pEN0g6MjFSb1JPODNTMkdvVGlocVFSVmxnUQ=="
+	//esURL := "localhost:9200"
+	apiKeyHeader := "ApiKey " + "MlYzT3A1WUI1eG1taHV0R3FMakM6ZGs0TnlMcC1TQldvMHhQMkVWVTl1UQ=="
 
 	// Load your CA cert
 	caCert, err := os.ReadFile("eck-ca.crt")
@@ -228,7 +230,8 @@ func pushToElasticsearchWithAPIKey(data []JoinedData) {
 
 func pushToElasticsearch(data []JoinedData) {
 	// Connect to Elasticsearch
-	esURL := "https://quickstart-es-http.default.svc:9200"
+	// esURL := "https://quickstart-es-http.default.svc:9200"
+	esURL := "http://localhost:9200"
 	client, err := elastic.NewClient(elastic.SetURL(esURL), elastic.SetSniff(false))
 	if err != nil {
 		log.Fatalf("Error creating Elasticsearch client: %v", err)
