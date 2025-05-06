@@ -113,7 +113,7 @@ func main() {
 
 	fmt.Println("len(joinedData): ", len(joinedData))
 
-	pushToElasticsearchWithAPIKey()
+	pushToElasticsearchWithAPIKey(joinedData)
 	//pushToElasticsearch(joinedData)
 }
 
