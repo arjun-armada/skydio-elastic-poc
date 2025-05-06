@@ -76,3 +76,31 @@ how to fix it, please visit the web page mentioned above.
 ::1             localhost
 127.0.0.1 quickstart-es-http.default.svc
 ```
+
+## Steps:
+1. Port forward ScyllaDB
+2. Run elastic cluster in Kind
+3. Get elastic password - ```kubectl get secret quickstart-es-elastic-user -o go-template='{{.data.elastic | base64decode}}'```
+4. Get API key - 
+``` 
+curl -k -X POST "https://localhost:9200/_security/api_key" \
+  -H "Content-Type: application/json" \
+  -u elastic:9w9Rgi0gewFZZT964ot5E655 \
+  -d '{
+    "name": "my-app-key",
+    "role_descriptors": {
+      "my_app_role": {
+        "cluster": ["monitor"],
+        "index": [
+          {
+            "names": ["*"],
+            "privileges": ["all"]
+          }
+        ]
+      }
+    }
+  }
+```
+5. Generate the ca.cert - ```kubectl get secret quickstart-es-http-certs-internal -o jsonpath='{.data.ca\.crt}' | base64 -d > eck-ca.crt```
+6. Port forward elastic service - kubectl port-forward service/quickstart-es-http 9200
+7. ``` curl --cacert eck-ca.crt -H "Authorization: ApiKey MlYzT3A1WUI1eG1taHV0R3FMakM6ZGs0TnlMcC1TQldvMHhQMkVWVTl1UQ==" https://quickstart-es-http.default.svc:9200```
