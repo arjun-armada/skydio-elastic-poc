@@ -89,8 +89,8 @@ curl -k -X POST "https://localhost:9200/_security/api_key" \
   -d '{
     "name": "my-app-key",
     "role_descriptors": {
-      "my_app_role": {
-        "cluster": ["monitor"],
+      "skydio-svc-api-key": {
+        "cluster": ["all"],
         "index": [
           {
             "names": ["*"],
